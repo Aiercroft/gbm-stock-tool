@@ -97,6 +97,11 @@ def render_historical_data_tab():
     if "historical_df" in st.session_state and st.session_state.historical_df is not None:
         df = st.session_state.historical_df
         
+        if 'Date' in df.columns:
+            df['Date'] = pd.to_datetime(df['Date'])
+            df = df.sort_values('Date').reset_index(drop=True)
+            st.session_state.historical_df = df
+        
         st.markdown("---")
         st.markdown("**Data Preview:**")
         st.dataframe(df.head(10), height=200)
@@ -104,13 +109,19 @@ def render_historical_data_tab():
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         
         if numeric_cols:
+            default_idx = 0
+            for i, col in enumerate(numeric_cols):
+                if col.lower() in ['close', 'adj close', 'adjusted close', 'price']:
+                    default_idx = i
+                    break
+            
             col_select, col_days = st.columns(2)
             
             with col_select:
                 price_column = st.selectbox(
                     "Select price column",
                     options=numeric_cols,
-                    index=0
+                    index=default_idx
                 )
             
             with col_days:
