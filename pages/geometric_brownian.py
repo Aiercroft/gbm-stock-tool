@@ -207,7 +207,12 @@ def render_historical_data_tab():
                         "mu": float(params['mu']),
                         "sigma": float(params['sigma'])
                     }
-                    st.success("Parameters saved! Switch to the Simulation tab to use them.")
+                    st.session_state.params_transferred = True
+                    st.rerun()
+                
+                if st.session_state.get("params_transferred"):
+                    st.success("Parameters ready! Click the 'Simulation' tab above to see them.")
+                    st.session_state.params_transferred = False
         else:
             st.warning("No numeric columns found in the uploaded file.")
 
