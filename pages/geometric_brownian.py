@@ -74,7 +74,7 @@ def render_page():
         
         with col2:
             T = st.number_input("Time Horizon (Years)", value=1.0, min_value=0.1, step=0.1)
-            dt = st.number_input("Time Step", value=0.01, min_value=0.001, step=0.001, format="%.4f")
+            dt = st.number_input("Time Step", value=1/252, min_value=0.001, step=0.001, format="%.6f")
             n_paths = st.number_input("Number of Paths", value=100, min_value=1, max_value=1000, step=10)
         
         col_run, col_save = st.columns([1, 1])
@@ -120,6 +120,24 @@ def render_page():
                 st.metric("5th Percentile", f"${np.percentile(final_prices, 5):.2f}")
             with stats_col4:
                 st.metric("95th Percentile", f"${np.percentile(final_prices, 95):.2f}")
+            
+            mean_path = np.mean(result["S"], axis=0)
+            fig_mean = go.Figure()
+            fig_mean.add_trace(go.Scatter(
+                x=result["t"],
+                y=mean_path,
+                mode='lines',
+                name='Average Price',
+                line=dict(color='#1f77b4', width=3)
+            ))
+            fig_mean.update_layout(
+                title="Average Price Over Time",
+                xaxis_title="Time (Years)",
+                yaxis_title="Price",
+                template="plotly_white",
+                height=350
+            )
+            st.plotly_chart(fig_mean)
             
             if save_name and st.button("Save This Configuration"):
                 save_entry = {
