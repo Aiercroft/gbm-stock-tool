@@ -202,9 +202,11 @@ def render_historical_data_tab():
                 st.plotly_chart(fig_returns)
                 
                 if st.button("Use These Parameters in Simulation"):
-                    st.session_state.sim_S0 = float(params['S0'])
-                    st.session_state.sim_mu = float(params['mu'])
-                    st.session_state.sim_sigma = float(params['sigma'])
+                    st.session_state.pending_params = {
+                        "S0": float(params['S0']),
+                        "mu": float(params['mu']),
+                        "sigma": float(params['sigma'])
+                    }
                     st.success("Parameters saved! Switch to the Simulation tab to use them.")
         else:
             st.warning("No numeric columns found in the uploaded file.")
@@ -212,6 +214,12 @@ def render_historical_data_tab():
 def render_simulation_tab():
     """Render the simulation tab."""
     col_main, col_saved = st.columns([2, 1])
+    
+    if "pending_params" in st.session_state:
+        st.session_state.sim_S0 = st.session_state.pending_params["S0"]
+        st.session_state.sim_mu = st.session_state.pending_params["mu"]
+        st.session_state.sim_sigma = st.session_state.pending_params["sigma"]
+        del st.session_state.pending_params
     
     if "sim_S0" not in st.session_state:
         st.session_state.sim_S0 = 100.0
