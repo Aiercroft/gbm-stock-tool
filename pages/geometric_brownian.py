@@ -69,6 +69,7 @@ def render_historical_data_tab():
     """Render the historical data import tab."""
     st.subheader("Import Historical Data")
     st.markdown("Upload price data to calculate drift (μ) and volatility (σ) parameters.")
+    st.markdown("Get free historical data from [Stooq](https://stooq.com/)")
     
     col_upload, col_info = st.columns([2, 1])
     
