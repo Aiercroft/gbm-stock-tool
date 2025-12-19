@@ -75,7 +75,7 @@ def render_page():
         with col2:
             T = st.number_input("Time Horizon (Years)", value=1.0, min_value=0.1, step=0.1)
             dt = st.number_input("Time Step", value=1/252, min_value=0.001, step=0.001, format="%.6f")
-            n_paths = st.number_input("Number of Paths", value=100, min_value=1, max_value=1000, step=10)
+            n_paths = st.number_input("Number of Paths", value=100, min_value=1, max_value=10000, step=100)
         
         col_run, col_save = st.columns([1, 1])
         
