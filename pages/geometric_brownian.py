@@ -44,7 +44,7 @@ def create_simulation_chart(t, S, title="GBM Simulation"):
     
     fig.update_layout(
         title=title,
-        xaxis_title="Time (Years)",
+        xaxis_title="Time (Days)",
         yaxis_title="Price",
         template="plotly_white",
         height=500
@@ -235,9 +235,9 @@ def render_simulation_tab():
                                    help="Annual volatility")
         
         with col2:
-            T = st.number_input("Time Horizon (Years)", value=1.0, min_value=0.1, step=0.1)
+            T_days = st.number_input("Time Horizon (Days)", value=252, min_value=1, step=1)
             dt = st.number_input("Time Step", value=1/252, min_value=0.001, step=0.001, format="%.6f")
-            n_paths = st.number_input("Number of Paths", value=100, min_value=1, step=100)
+            n_paths = st.number_input("Number of Paths", value=20000, min_value=1, step=1000)
         
         col_run, col_save = st.columns([1, 1])
         
@@ -249,16 +249,18 @@ def render_simulation_tab():
         
         if run_simulation:
             with st.spinner("Running simulation..."):
+                T = T_days / 252
                 t, S = simulate_gbm(S0, mu, sigma, T, dt, int(n_paths))
+                t_days = t * 252
                 
                 st.session_state.current_result = {
-                    "t": t,
+                    "t": t_days,
                     "S": S,
                     "params": {
                         "S0": S0,
                         "mu": mu,
                         "sigma": sigma,
-                        "T": T,
+                        "T_days": T_days,
                         "dt": dt,
                         "n_paths": int(n_paths)
                     }
@@ -294,7 +296,7 @@ def render_simulation_tab():
             ))
             fig_mean.update_layout(
                 title="Average Price Over Time",
-                xaxis_title="Time (Years)",
+                xaxis_title="Time (Days)",
                 yaxis_title="Price",
                 template="plotly_white",
                 height=350
@@ -332,7 +334,7 @@ def render_simulation_tab():
                     st.markdown(f"- S₀: {params['S0']}")
                     st.markdown(f"- μ: {params['mu']}")
                     st.markdown(f"- σ: {params['sigma']}")
-                    st.markdown(f"- T: {params['T']} years")
+                    st.markdown(f"- T: {params.get('T_days', params.get('T', 0) * 252)} days")
                     st.markdown(f"- Paths: {params['n_paths']}")
                     
                     st.markdown("**Results:**")
@@ -344,8 +346,11 @@ def render_simulation_tab():
                     with col_load:
                         if st.button("Load", key=f"load_{i}"):
                             p = item["params"]
-                            t, S = simulate_gbm(p["S0"], p["mu"], p["sigma"], p["T"], p["dt"], p["n_paths"])
-                            st.session_state.current_result = {"t": t, "S": S, "params": p}
+                            T_days = p.get('T_days', p.get('T', 1) * 252)
+                            T = T_days / 252
+                            t, S = simulate_gbm(p["S0"], p["mu"], p["sigma"], T, p["dt"], p["n_paths"])
+                            t_days = t * 252
+                            st.session_state.current_result = {"t": t_days, "S": S, "params": p}
                             st.rerun()
                     with col_delete:
                         if st.button("Delete", key=f"delete_{i}"):
