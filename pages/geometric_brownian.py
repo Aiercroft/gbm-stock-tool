@@ -204,6 +204,7 @@ def render_historical_data_tab():
                 if st.button("Use These Parameters in Simulation"):
                     st.session_state.use_calculated_params = True
                     st.success("Parameters saved! Switch to the Simulation tab to use them.")
+                    st.rerun()
         else:
             st.warning("No numeric columns found in the uploaded file.")
 
