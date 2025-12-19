@@ -52,13 +52,155 @@ def create_simulation_chart(t, S, title="GBM Simulation"):
     
     return fig
 
-def render_page():
-    st.title("Geometric Brownian Motion")
-    st.markdown("Model stock prices and asset dynamics using stochastic differential equations.")
+def calculate_gbm_params(prices, trading_days_per_year=252):
+    """Calculate drift and volatility from historical prices."""
+    prices = np.array(prices)
+    log_returns = np.diff(np.log(prices))
     
-    st.markdown("---")
+    daily_mu = np.mean(log_returns)
+    daily_sigma = np.std(log_returns, ddof=1)
     
+    annual_sigma = daily_sigma * np.sqrt(trading_days_per_year)
+    annual_mu = daily_mu * trading_days_per_year + 0.5 * annual_sigma**2
+    
+    return annual_mu, annual_sigma, log_returns
+
+def render_historical_data_tab():
+    """Render the historical data import tab."""
+    st.subheader("Import Historical Data")
+    st.markdown("Upload price data to calculate drift (μ) and volatility (σ) parameters.")
+    
+    col_upload, col_info = st.columns([2, 1])
+    
+    with col_upload:
+        uploaded_file = st.file_uploader(
+            "Upload CSV file",
+            type=["csv"],
+            help="CSV should have a column with historical prices"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                df = pd.read_csv(uploaded_file)
+                st.session_state.historical_df = df
+                st.success(f"Loaded {len(df)} rows")
+            except Exception as e:
+                st.error(f"Error reading file: {e}")
+    
+    with col_info:
+        st.markdown("**Expected format:**")
+        st.markdown("- CSV with price column")
+        st.markdown("- Prices in chronological order")
+        st.markdown("- One price per trading day")
+    
+    if "historical_df" in st.session_state and st.session_state.historical_df is not None:
+        df = st.session_state.historical_df
+        
+        st.markdown("---")
+        st.markdown("**Data Preview:**")
+        st.dataframe(df.head(10), height=200)
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        
+        if numeric_cols:
+            col_select, col_days = st.columns(2)
+            
+            with col_select:
+                price_column = st.selectbox(
+                    "Select price column",
+                    options=numeric_cols,
+                    index=0
+                )
+            
+            with col_days:
+                trading_days = st.number_input(
+                    "Trading days per year",
+                    value=252,
+                    min_value=1,
+                    step=1
+                )
+            
+            if st.button("Calculate Parameters", type="primary"):
+                prices = df[price_column].dropna().values
+                
+                if len(prices) < 2:
+                    st.error("Need at least 2 price points")
+                else:
+                    mu, sigma, log_returns = calculate_gbm_params(prices, trading_days)
+                    
+                    st.session_state.calculated_params = {
+                        "mu": mu,
+                        "sigma": sigma,
+                        "S0": prices[-1],
+                        "log_returns": log_returns,
+                        "prices": prices
+                    }
+            
+            if "calculated_params" in st.session_state:
+                params = st.session_state.calculated_params
+                
+                st.markdown("---")
+                st.subheader("Calculated Parameters")
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Drift (μ)", f"{params['mu']:.4f}")
+                with col2:
+                    st.metric("Volatility (σ)", f"{params['sigma']:.4f}")
+                with col3:
+                    st.metric("Latest Price", f"${params['S0']:.2f}")
+                
+                fig_prices = go.Figure()
+                fig_prices.add_trace(go.Scatter(
+                    y=params['prices'],
+                    mode='lines',
+                    name='Historical Prices',
+                    line=dict(color='#1f77b4', width=2)
+                ))
+                fig_prices.update_layout(
+                    title="Historical Price Data",
+                    xaxis_title="Trading Day",
+                    yaxis_title="Price",
+                    template="plotly_white",
+                    height=350
+                )
+                st.plotly_chart(fig_prices)
+                
+                fig_returns = go.Figure()
+                fig_returns.add_trace(go.Histogram(
+                    x=params['log_returns'],
+                    nbinsx=50,
+                    name='Log Returns'
+                ))
+                fig_returns.update_layout(
+                    title="Distribution of Log Returns",
+                    xaxis_title="Log Return",
+                    yaxis_title="Frequency",
+                    template="plotly_white",
+                    height=300
+                )
+                st.plotly_chart(fig_returns)
+                
+                if st.button("Use These Parameters in Simulation"):
+                    st.session_state.use_calculated_params = True
+                    st.success("Parameters saved! Switch to the Simulation tab to use them.")
+        else:
+            st.warning("No numeric columns found in the uploaded file.")
+
+def render_simulation_tab():
+    """Render the simulation tab."""
     col_main, col_saved = st.columns([2, 1])
+    
+    default_mu = 0.05
+    default_sigma = 0.2
+    default_S0 = 100.0
+    
+    if st.session_state.get("use_calculated_params") and "calculated_params" in st.session_state:
+        params = st.session_state.calculated_params
+        default_mu = params["mu"]
+        default_sigma = params["sigma"]
+        default_S0 = params["S0"]
+        st.session_state.use_calculated_params = False
     
     with col_main:
         st.subheader("Model Configuration")
@@ -66,10 +208,10 @@ def render_page():
         col1, col2 = st.columns(2)
         
         with col1:
-            S0 = st.number_input("Initial Price (S₀)", value=100.0, min_value=0.01, step=1.0)
-            mu = st.number_input("Drift (μ)", value=0.05, step=0.01, format="%.4f", 
+            S0 = st.number_input("Initial Price (S₀)", value=default_S0, min_value=0.01, step=1.0)
+            mu = st.number_input("Drift (μ)", value=default_mu, step=0.01, format="%.4f", 
                                 help="Expected annual return")
-            sigma = st.number_input("Volatility (σ)", value=0.2, min_value=0.01, step=0.01, format="%.4f",
+            sigma = st.number_input("Volatility (σ)", value=default_sigma, min_value=0.01, step=0.01, format="%.4f",
                                    help="Annual volatility")
         
         with col2:
@@ -189,3 +331,17 @@ def render_page():
                         if st.button("Delete", key=f"delete_{i}"):
                             st.session_state.savings["geometric_brownian"].pop(i)
                             st.rerun()
+
+def render_page():
+    st.title("Geometric Brownian Motion")
+    st.markdown("Model stock prices and asset dynamics using stochastic differential equations.")
+    
+    st.markdown("---")
+    
+    tab_sim, tab_data = st.tabs(["Simulation", "Historical Data"])
+    
+    with tab_sim:
+        render_simulation_tab()
+    
+    with tab_data:
+        render_historical_data_tab()
