@@ -202,9 +202,10 @@ def render_historical_data_tab():
                 st.plotly_chart(fig_returns)
                 
                 if st.button("Use These Parameters in Simulation"):
-                    st.session_state.use_calculated_params = True
+                    st.session_state.sim_S0 = float(params['S0'])
+                    st.session_state.sim_mu = float(params['mu'])
+                    st.session_state.sim_sigma = float(params['sigma'])
                     st.success("Parameters saved! Switch to the Simulation tab to use them.")
-                    st.rerun()
         else:
             st.warning("No numeric columns found in the uploaded file.")
 
@@ -212,16 +213,12 @@ def render_simulation_tab():
     """Render the simulation tab."""
     col_main, col_saved = st.columns([2, 1])
     
-    default_mu = 0.05
-    default_sigma = 0.2
-    default_S0 = 100.0
-    
-    if st.session_state.get("use_calculated_params") and "calculated_params" in st.session_state:
-        params = st.session_state.calculated_params
-        default_mu = params["mu"]
-        default_sigma = params["sigma"]
-        default_S0 = params["S0"]
-        st.session_state.use_calculated_params = False
+    if "sim_S0" not in st.session_state:
+        st.session_state.sim_S0 = 100.0
+    if "sim_mu" not in st.session_state:
+        st.session_state.sim_mu = 0.05
+    if "sim_sigma" not in st.session_state:
+        st.session_state.sim_sigma = 0.2
     
     with col_main:
         st.subheader("Model Configuration")
@@ -229,11 +226,11 @@ def render_simulation_tab():
         col1, col2 = st.columns(2)
         
         with col1:
-            S0 = st.number_input("Initial Price (S₀)", value=default_S0, min_value=0.01, step=1.0)
-            mu = st.number_input("Drift (μ)", value=default_mu, step=0.01, format="%.4f", 
-                                help="Expected annual return")
-            sigma = st.number_input("Volatility (σ)", value=default_sigma, min_value=0.01, step=0.01, format="%.4f",
-                                   help="Annual volatility")
+            S0 = st.number_input("Initial Price (S₀)", min_value=0.01, step=1.0, key="sim_S0")
+            mu = st.number_input("Drift (μ)", step=0.01, format="%.4f", 
+                                help="Expected annual return", key="sim_mu")
+            sigma = st.number_input("Volatility (σ)", min_value=0.01, step=0.01, format="%.4f",
+                                   help="Annual volatility", key="sim_sigma")
         
         with col2:
             T_days = st.number_input("Time Horizon (Days)", value=252, min_value=1, step=1)
