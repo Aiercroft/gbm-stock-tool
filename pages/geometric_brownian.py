@@ -103,8 +103,8 @@ def render_historical_data_tab():
             st.session_state.historical_df = df
         
         st.markdown("---")
-        st.markdown("**Data Preview:**")
-        st.dataframe(df.head(10), height=200)
+        st.markdown(f"**Data Preview:** ({len(df)} total entries)")
+        st.dataframe(df, height=300)
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         
@@ -134,6 +134,7 @@ def render_historical_data_tab():
             
             if st.button("Calculate Parameters", type="primary"):
                 prices = df[price_column].dropna().values
+                dates = df['Date'].values if 'Date' in df.columns else None
                 
                 if len(prices) < 2:
                     st.error("Need at least 2 price points")
@@ -145,8 +146,11 @@ def render_historical_data_tab():
                         "sigma": sigma,
                         "S0": prices[-1],
                         "log_returns": log_returns,
-                        "prices": prices
+                        "prices": prices,
+                        "dates": dates,
+                        "n_entries": len(prices)
                     }
+                    st.success(f"Calculated from {len(prices)} price entries")
             
             if "calculated_params" in st.session_state:
                 params = st.session_state.calculated_params
@@ -154,24 +158,28 @@ def render_historical_data_tab():
                 st.markdown("---")
                 st.subheader("Calculated Parameters")
                 
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("Drift (μ)", f"{params['mu']:.4f}")
                 with col2:
                     st.metric("Volatility (σ)", f"{params['sigma']:.4f}")
                 with col3:
                     st.metric("Latest Price", f"${params['S0']:.2f}")
+                with col4:
+                    st.metric("Data Points", f"{params['n_entries']}")
                 
                 fig_prices = go.Figure()
+                x_axis = params['dates'] if params.get('dates') is not None else list(range(len(params['prices'])))
                 fig_prices.add_trace(go.Scatter(
+                    x=x_axis,
                     y=params['prices'],
                     mode='lines',
                     name='Historical Prices',
                     line=dict(color='#1f77b4', width=2)
                 ))
                 fig_prices.update_layout(
-                    title="Historical Price Data",
-                    xaxis_title="Trading Day",
+                    title=f"Historical Price Data ({params['n_entries']} entries)",
+                    xaxis_title="Date" if params.get('dates') is not None else "Trading Day",
                     yaxis_title="Price",
                     template="plotly_white",
                     height=350
