@@ -201,18 +201,14 @@ def render_historical_data_tab():
                 )
                 st.plotly_chart(fig_returns)
                 
-                if st.button("Use These Parameters in Simulation"):
+                if st.button("Use These Parameters in Simulation", type="primary"):
                     st.session_state.pending_params = {
                         "S0": float(params['S0']),
                         "mu": float(params['mu']),
                         "sigma": float(params['sigma'])
                     }
-                    st.session_state.params_transferred = True
+                    st.session_state.active_tab = "Simulation"
                     st.rerun()
-                
-                if st.session_state.get("params_transferred"):
-                    st.success("Parameters ready! Click the 'Simulation' tab above to see them.")
-                    st.session_state.params_transferred = False
         else:
             st.warning("No numeric columns found in the uploaded file.")
 
@@ -374,10 +370,25 @@ def render_page():
     
     st.markdown("---")
     
-    tab_sim, tab_data = st.tabs(["Simulation", "Historical Data"])
+    if "active_tab" not in st.session_state:
+        st.session_state.active_tab = "Simulation"
     
-    with tab_sim:
+    tab_options = ["Simulation", "Historical Data"]
+    selected_tab = st.radio(
+        "Navigate",
+        tab_options,
+        index=tab_options.index(st.session_state.active_tab),
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    
+    if selected_tab != st.session_state.active_tab:
+        st.session_state.active_tab = selected_tab
+        st.rerun()
+    
+    st.markdown("---")
+    
+    if st.session_state.active_tab == "Simulation":
         render_simulation_tab()
-    
-    with tab_data:
+    else:
         render_historical_data_tab()
