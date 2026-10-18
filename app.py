@@ -1,10 +1,10 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="Finance Recorder",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="Geometric Brownian Motion",
+    page_icon="∿",
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
 if "savings" not in st.session_state:
@@ -12,18 +12,6 @@ if "savings" not in st.session_state:
         "geometric_brownian": []
     }
 
-st.sidebar.title("Finance Recorder")
-st.sidebar.markdown("---")
+from pages.geometric_brownian import render_page
 
-page = st.sidebar.radio(
-    "Select Model",
-    ["Geometric Brownian Motion"],
-    index=0
-)
-
-st.sidebar.markdown("---")
-st.sidebar.caption("Statistical Models for Finance")
-
-if page == "Geometric Brownian Motion":
-    from pages.geometric_brownian import render_page
-    render_page()
+render_page()
