@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import yfinance as yf
 from datetime import datetime
 
 def simulate_gbm(S0, mu, sigma, T, dt, n_paths):
@@ -65,34 +66,121 @@ def calculate_gbm_params(prices, trading_days_per_year=252):
     
     return annual_mu, annual_sigma, log_returns
 
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_ticker_history(ticker, period):
+    """Fetch adjusted daily closing prices from Yahoo Finance."""
+    history = yf.download(
+        ticker,
+        period=period,
+        interval="1d",
+        auto_adjust=True,
+        progress=False,
+        threads=False,
+        timeout=20,
+    )
+
+    if history.empty:
+        raise ValueError("No price history was returned for this ticker.")
+
+    if isinstance(history.columns, pd.MultiIndex):
+        close_level = next(
+            (
+                level
+                for level in range(history.columns.nlevels)
+                if "Close" in history.columns.get_level_values(level)
+            ),
+            None,
+        )
+        if close_level is None:
+            raise ValueError("The provider did not return daily closing prices.")
+        history.columns = history.columns.get_level_values(close_level)
+
+    if "Close" not in history.columns:
+        raise ValueError("The provider did not return daily closing prices.")
+
+    history.index.name = "Date"
+    daily_prices = history[["Close"]].reset_index()
+    daily_prices["Date"] = pd.to_datetime(daily_prices["Date"])
+    daily_prices = daily_prices.dropna(subset=["Close"])
+    daily_prices = daily_prices[daily_prices["Close"] > 0].reset_index(drop=True)
+
+    if len(daily_prices) < 2:
+        raise ValueError("At least two daily prices are needed for analysis.")
+
+    return daily_prices
+
 def render_historical_data_tab():
     """Render the historical data import tab."""
     st.subheader("Import Historical Data")
-    st.markdown("Upload price data to calculate drift (μ) and volatility (σ) parameters.")
-    st.markdown("Get free historical data from [Stooq](https://stooq.com/)")
-    
-    col_upload, col_info = st.columns([2, 1])
-    
-    with col_upload:
-        uploaded_file = st.file_uploader(
-            "Upload CSV file",
-            type=["csv"],
-            help="CSV should have a column with historical prices"
+    st.markdown("Load daily prices by ticker or upload a CSV to calculate drift (μ) and volatility (σ).")
+    data_source = st.radio(
+        "Data source",
+        ["Ticker lookup", "Upload CSV"],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+
+    if data_source == "Ticker lookup":
+        with st.form("ticker_history_form"):
+            col_ticker, col_period = st.columns([2, 1])
+            with col_ticker:
+                ticker = st.text_input(
+                    "Ticker symbol",
+                    placeholder="AAPL",
+                    help="Use the symbol used by Yahoo Finance, such as AAPL, MSFT, or BRK-B.",
+                ).strip().upper()
+            with col_period:
+                period = st.selectbox(
+                    "History",
+                    options=["1y", "2y", "5y", "10y", "max"],
+                    index=2,
+                    format_func=lambda value: "Maximum available" if value == "max" else value,
+                )
+            fetch_submitted = st.form_submit_button("Fetch daily prices", type="primary")
+
+        st.caption(
+            "Historical adjusted daily closing prices from Yahoo Finance via yfinance. "
+            "This is not real-time market data."
         )
-        
-        if uploaded_file is not None:
-            try:
-                df = pd.read_csv(uploaded_file)
-                st.session_state.historical_df = df
-                st.success(f"Loaded {len(df)} rows")
-            except Exception as e:
-                st.error(f"Error reading file: {e}")
-    
-    with col_info:
-        st.markdown("**Expected format:**")
-        st.markdown("- CSV with price column")
-        st.markdown("- Prices in chronological order")
-        st.markdown("- One price per trading day")
+
+        if fetch_submitted:
+            if not ticker:
+                st.error("Enter a ticker symbol first.")
+            else:
+                try:
+                    with st.spinner(f"Fetching {ticker} price history…"):
+                        prices = fetch_ticker_history(ticker, period)
+                    st.session_state.historical_df = prices
+                    st.session_state.historical_source = f"Yahoo Finance · {ticker}"
+                    st.session_state.pop("calculated_params", None)
+                    st.success(f"Loaded {len(prices)} daily prices for {ticker}.")
+                except Exception:
+                    st.error(
+                        f"Could not retrieve price history for {ticker}. "
+                        "Check the symbol and try again; the data provider may also be temporarily unavailable."
+                    )
+    else:
+        col_upload, col_info = st.columns([2, 1])
+        with col_upload:
+            uploaded_file = st.file_uploader(
+                "Upload CSV file",
+                type=["csv"],
+                help="CSV should have a column with historical prices",
+            )
+            if uploaded_file is not None:
+                try:
+                    df = pd.read_csv(uploaded_file)
+                    st.session_state.historical_df = df
+                    st.session_state.historical_source = "CSV upload"
+                    st.success(f"Loaded {len(df)} rows")
+                except Exception as e:
+                    st.error(f"Error reading file: {e}")
+
+        with col_info:
+            st.markdown("**Expected format:**")
+            st.markdown("- CSV with a price column")
+            st.markdown("- Prices in chronological order")
+            st.markdown("- One price per trading day")
     
     if "historical_df" in st.session_state and st.session_state.historical_df is not None:
         df = st.session_state.historical_df
@@ -103,6 +191,8 @@ def render_historical_data_tab():
             st.session_state.historical_df = df
         
         st.markdown("---")
+        if st.session_state.get("historical_source"):
+            st.caption(f"Loaded from {st.session_state.historical_source}")
         st.markdown(f"**Data Preview:** ({len(df)} total entries)")
         st.dataframe(df, height=300)
         
